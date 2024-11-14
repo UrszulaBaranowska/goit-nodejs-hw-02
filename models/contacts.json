@@ -58,5 +58,17 @@
     "name": "Alec Howard",
     "email": "Donec.elementum@scelerisquescelerisquedui.net",
     "phone": "(748) 206-2688"
+  },
+  {
+    "id": "70a6a02e-3aa0-4b99-a83d-7d774a1e2bc5",
+    "name": "Zaktualizowane Imię",
+    "email": "nowy.email@example.com",
+    "phone": "(123) 456-7890"
+  },
+  {
+    "id": "df73d9a4-aa06-4da8-bbd8-affdf3d16977",
+    "name": "Jan Kowalski",
+    "email": "jan.kowalski@example.com",
+    "phone": "(123) 456-7890"
   }
 ]
