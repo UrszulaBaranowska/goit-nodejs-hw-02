@@ -5,13 +5,28 @@ const { v4: uuidv4 } = require("uuid");
 const contactsPath = path.join(__dirname, "./contacts.json");
 
 const listContacts = async () => {
-  const data = await fs.readFile(contactsPath, "utf8");
-  return JSON.parse(data);
-}; 
+  try {
+    console.log("Reading contacts from:", contactsPath);
+    const data = await fs.readFile(contactsPath, "utf8");
+    console.log("Data read from file:", data);
+    return JSON.parse(data);
+  } catch (err) {
+    console.error("Error reading contacts.json:", err);
+    throw err;
+  }
+};
 
 const getContactById = async (contactId) => {
-  const contacts = await listContacts();
-  return contacts.find((contact) => contact.id === contactId) || null;
+  try {
+    console.log("Searching for contact with ID:", contactId);
+    const contacts = await listContacts();
+    const contact = contacts.find((contact) => contact.id === contactId);
+    console.log("Contact found:", contact);
+    return contact || null;
+  } catch (err) {
+    console.error("Error in getContactById:", err);
+    throw err;
+  }
 };
 
 const addContact = async ({ name, email, phone }) => {
@@ -31,11 +46,12 @@ const removeContact = async (contactId) => {
   return removedContact;
 };
 
-const updateContact = async (contactId, { name, email, phone }) => {
+const updateContact = async (contactId, updates) => {
   const contacts = await listContacts();
   const index = contacts.findIndex((contact) => contact.id === contactId);
   if (index === -1) return null;
-  contacts[index] = { ...contacts[index], name, email, phone };
+
+  contacts[index] = Object.assign(contacts[index], updates);
   await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
   return contacts[index];
 };

@@ -70,5 +70,11 @@
     "name": "Jan Kowalski",
     "email": "jan.kowalski@example.com",
     "phone": "(123) 456-7890"
+  },
+  {
+    "id": "8a4260bb-e65c-4877-bbca-98a76b71201d",
+    "name": "Jan Kowalski",
+    "email": "jan.kowalski@example.com",
+    "phone": "(123) 456-7890"
   }
 ]
