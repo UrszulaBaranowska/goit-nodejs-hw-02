@@ -20,4 +20,14 @@ async function connectDB() {
   }
 }
 
+const Contact = require("../models/contact");
+
+async function testContacts() {
+  const contacts = await Contact.find();
+  console.log("Contacts in database:", contacts);
+}
+
+testContacts();
+
+
 module.exports = connectDB;
