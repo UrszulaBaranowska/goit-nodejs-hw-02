@@ -1,21 +1,16 @@
 const express = require("express");
-const {
-  listContacts,
-  getContactById,
-  addContact,
-  removeContact,
-  updateContact
-} = require("../../models/contacts");
+const Contact = require("../../models/contact");
+const Joi = require("joi");
 
 const router = express.Router();
-const Joi = require("joi");
 
 const contactSchema = Joi.object({
   name: Joi.string().min(3).required(),
   email: Joi.string().email().required(),
   phone: Joi.string()
     .pattern(/^\(\d{3}\) \d{3}-\d{4}$/)
-    .required()
+    .required(),
+  favorite: Joi.boolean()
 });
 
 const contactPatchSchema = Joi.object({
@@ -23,17 +18,15 @@ const contactPatchSchema = Joi.object({
   email: Joi.string().email().optional(),
   phone: Joi.string()
     .pattern(/^\(\d{3}\) \d{3}-\d{4}$/)
-    .optional()
+    .optional(),
+  favorite: Joi.boolean().optional()
 }).min(1);
 
 router.get("/", async (req, res, next) => {
   try {
-    console.log("GET /api/contacts endpoint called");
-    const contacts = await listContacts();
-    console.log("Contacts retrieved:", contacts);
+    const contacts = await Contact.find();
     res.status(200).json(contacts);
   } catch (error) {
-    console.error("Error in GET /api/contacts:", error);
     next(error);
   }
 });
@@ -41,15 +34,12 @@ router.get("/", async (req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    console.log(`GET /api/contacts/${id} endpoint called`);
-    const contact = await getContactById(id);
+    const contact = await Contact.findById(id);
     if (!contact) {
-      console.log("Contact not found");
       return res.status(404).json({ message: "Not found" });
     }
     res.status(200).json(contact);
   } catch (error) {
-    console.error(`Error in GET /api/contacts/${req.params.id}:`, error);
     next(error);
   }
 });
@@ -61,11 +51,10 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const newContact = await addContact(req.body);
+    const newContact = await Contact.create(req.body);
     res.status(201).json(newContact);
-  } catch (err) {
-    console.error("Error in POST /contacts:", err);
-    next(err);
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -76,27 +65,17 @@ router.put("/:id", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const updatedContact = await updateContact(req.params.id, req.body);
+    const updatedContact = await Contact.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
     if (!updatedContact) {
       return res.status(404).json({ message: "Not found" });
     }
     res.status(200).json(updatedContact);
-  } catch (err) {
-    console.error("Error in PUT /contacts/:id:", err);
-    next(err);
-  }
-});
-
-router.delete("/:id", async (req, res, next) => {
-  try {
-    const removedContact = await removeContact(req.params.id);
-    if (!removedContact) {
-      return res.status(404).json({ message: "Not found" });
-    }
-    res.status(200).json({ message: "contact deleted" });
-  } catch (err) {
-    console.error("Error in DELETE /contacts/:id:", err);
-    next(err);
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -107,14 +86,54 @@ router.patch("/:id", async (req, res, next) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const updatedContact = await updateContact(req.params.id, req.body);
+    const updatedContact = await Contact.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
     if (!updatedContact) {
       return res.status(404).json({ message: "Not found" });
     }
     res.status(200).json(updatedContact);
-  } catch (err) {
-    console.error("Error in PATCH /contacts/:id:", err);
-    next(err);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const removedContact = await Contact.findByIdAndDelete(req.params.id);
+    if (!removedContact) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    res.status(200).json({ message: "Contact deleted" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:id/favorite", async (req, res, next) => {
+  try {
+    const { favorite } = req.body;
+
+    if (favorite === undefined) {
+      return res.status(400).json({ message: "missing field favorite" });
+    }
+
+    const updatedContact = await Contact.findByIdAndUpdate(
+      req.params.id,
+      { favorite },
+      { new: true }
+    );
+
+    if (!updatedContact) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    res.status(200).json(updatedContact);
+  } catch (error) {
+    console.error("Error in PATCH /contacts/:id/favorite:", error.message);
+    next(error);
   }
 });
 
