@@ -1,9 +1,18 @@
 const mongoose = require("mongoose");
+require("dotenv").config();
 
-const username = encodeURIComponent("uwilinska");
-const password = encodeURIComponent("8V3wYECxKCfYflSQ");
-const cluster = "cluster0.cwimq.mongodb.net";
-const dbName = "db-contacts";
+console.log("Process.env:", process.env);
+
+console.log("MongoDB config:");
+console.log("MONGO_USERNAME:", process.env.MONGO_USERNAME);
+console.log("MONGO_PASSWORD:", process.env.MONGO_PASSWORD);
+console.log("MONGO_CLUSTER:", process.env.MONGO_CLUSTER);
+console.log("MONGO_DBNAME:", process.env.MONGO_DBNAME);
+
+const username = encodeURIComponent(process.env.MONGO_USERNAME);
+const password = encodeURIComponent(process.env.MONGO_PASSWORD);
+const cluster = process.env.MONGO_CLUSTER;
+const dbName = process.env.MONGO_DBNAME;
 
 const uri = `mongodb+srv://${username}:${password}@${cluster}/${dbName}?retryWrites=true&w=majority`;
 
@@ -28,6 +37,5 @@ async function testContacts() {
 }
 
 testContacts();
-
 
 module.exports = connectDB;
