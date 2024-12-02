@@ -4,14 +4,17 @@ const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const gravatar = require("gravatar");
 const User = require("../../models/user");
+const Contact = require("../../models/contact");
 const authMiddleware = require("../../middlewares/authMiddleware");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs/promises");
 const jimp = require("jimp");
-console.log("Jimp export:", jimp);
 
 const router = express.Router();
+
+const tmpDir = path.join(__dirname, "../../tmp");
+const upload = multer({ dest: tmpDir });
 
 const signupSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -22,9 +25,6 @@ const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required()
 });
-
-const tmpDir = path.join(__dirname, "../../tmp");
-const upload = multer({ dest: tmpDir });
 
 router.post("/signup", async (req, res, next) => {
   try {
@@ -152,5 +152,34 @@ router.patch(
     }
   }
 );
+
+router.delete("/delete", authMiddleware, async (req, res, next) => {
+  try {
+    const deletedUser = await User.findByIdAndDelete(req.user._id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await Contact.deleteMany({ owner: req.user._id });
+
+    const avatarPath = path.join(
+      __dirname,
+      "../../public",
+      deletedUser.avatarURL
+    );
+    try {
+      await fs.unlink(avatarPath);
+    } catch (err) {
+      console.warn("Avatar file not found or already deleted:", avatarPath);
+    }
+
+    res
+      .status(200)
+      .json({ message: "User and related contacts deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;
