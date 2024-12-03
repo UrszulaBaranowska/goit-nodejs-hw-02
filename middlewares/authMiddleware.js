@@ -4,6 +4,7 @@ const User = require("../models/user");
 const authMiddleware = async (req, res, next) => {
   try {
     const { authorization } = req.headers;
+    console.log("AuthMiddleware triggered for:", req.url);
 
     if (!authorization || !authorization.startsWith("Bearer ")) {
       console.error("Authorization header missing or invalid");

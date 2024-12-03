@@ -10,6 +10,9 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs/promises");
 const jimp = require("jimp");
+const { v4: uuidv4 } = require("uuid");
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const router = express.Router();
 
@@ -41,14 +44,28 @@ router.post("/signup", async (req, res, next) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
+    const verificationToken = uuidv4();
 
     const newUser = await User.create({
       email,
       password: hashedPassword,
-      avatarURL
+      avatarURL,
+      verificationToken
     });
+
+    const verificationLink = `${req.protocol}://${req.get(
+      "host"
+    )}/users/verify/${verificationToken}`;
+
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_SENDER,
+      subject: "Email Verification",
+      html: `<p>Click the link to verify your email: <a href="${verificationLink}">${verificationLink}</a></p>`
+    };
+
+    await sgMail.send(msg);
 
     res.status(201).json({
       user: {
@@ -57,6 +74,63 @@ router.post("/signup", async (req, res, next) => {
         avatarURL: newUser.avatarURL
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/verify/:verificationToken", async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+
+    const user = await User.findOne({ verificationToken });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.verificationToken = null;
+    user.verify = true;
+    await user.save();
+
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/verify", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Missing required field email" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.verify) {
+      return res.status(400).json({
+        message: "Verification has already been passed"
+      });
+    }
+
+    const verificationLink = `${req.protocol}://${req.get(
+      "host"
+    )}/users/verify/${user.verificationToken}`;
+
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_SENDER,
+      subject: "Email Verification",
+      html: `<p>Click the link to verify your email: <a href="${verificationLink}">${verificationLink}</a></p>`
+    };
+
+    await sgMail.send(msg);
+
+    res.status(200).json({ message: "Verification email sent" });
   } catch (error) {
     next(error);
   }
