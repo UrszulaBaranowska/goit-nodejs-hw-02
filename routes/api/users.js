@@ -2,10 +2,19 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Joi = require("joi");
+const gravatar = require("gravatar");
 const User = require("../../models/user");
+const Contact = require("../../models/contact");
 const authMiddleware = require("../../middlewares/authMiddleware");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs/promises");
+const jimp = require("jimp");
 
 const router = express.Router();
+
+const tmpDir = path.join(__dirname, "../../tmp");
+const upload = multer({ dest: tmpDir });
 
 const signupSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -15,10 +24,6 @@ const signupSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required()
-});
-
-const subscriptionSchema = Joi.object({
-  subscription: Joi.string().valid("starter", "pro", "business").required()
 });
 
 router.post("/signup", async (req, res, next) => {
@@ -37,15 +42,19 @@ router.post("/signup", async (req, res, next) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
+
     const newUser = await User.create({
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      avatarURL
     });
 
     res.status(201).json({
       user: {
         email: newUser.email,
-        subscription: newUser.subscription
+        subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL
       }
     });
   } catch (error) {
@@ -93,61 +102,82 @@ router.get("/logout", authMiddleware, async (req, res, next) => {
     user.token = null;
     await user.save();
 
-    console.log("User logged out successfully:", user.email);
-    res.status(200).json({ message: "Logout successful" });
+    res.status(204).send();
   } catch (error) {
-    console.error("Error during logout:", error.message);
     next(error);
   }
 });
 
 router.get("/current", authMiddleware, (req, res, next) => {
-  const { email, subscription } = req.user;
-  res.status(200).json({ email, subscription });
+  const { email, subscription, avatarURL } = req.user;
+  res.status(200).json({ email, subscription, avatarURL });
 });
 
-router.patch("/", authMiddleware, async (req, res, next) => {
-  try {
-    const { error } = subscriptionSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+router.patch(
+  "/avatars",
+  authMiddleware,
+  upload.single("avatar"),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { path: tempPath, originalname } = req.file;
+      const fileExtension = originalname.split(".").pop();
+      const uniqueName = `${req.user._id}.${fileExtension}`;
+      const uploadPath = path.join(
+        __dirname,
+        "../../public/avatars",
+        uniqueName
+      );
+
+      try {
+        const image = await jimp.read(tempPath);
+        await image.resize(250, 250).writeAsync(uploadPath);
+      } catch (err) {
+        console.error("Error processing image with Jimp:", err.message);
+        throw new Error("Image processing failed");
+      }
+
+      await fs.unlink(tempPath);
+
+      req.user.avatarURL = `/avatars/${uniqueName}`;
+      await req.user.save();
+
+      res.status(200).json({ avatarURL: req.user.avatarURL });
+    } catch (error) {
+      console.error("Error in PATCH /users/avatars:", error.message);
+      next(error);
     }
-
-    const { subscription } = req.body;
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      { subscription },
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json({
-      email: updatedUser.email,
-      subscription: updatedUser.subscription
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
-router.delete("/", authMiddleware, async (req, res, next) => {
+router.delete("/delete", authMiddleware, async (req, res, next) => {
   try {
-    console.log("Request user ID:", req.user._id);
-
     const deletedUser = await User.findByIdAndDelete(req.user._id);
+
     if (!deletedUser) {
-      console.error("User not found with ID:", req.user._id);
       return res.status(404).json({ message: "User not found" });
     }
 
-    console.log("User deleted successfully:", deletedUser.email);
-    res.status(200).json({ message: "User deleted successfully" });
+    await Contact.deleteMany({ owner: req.user._id });
+
+    const avatarPath = path.join(
+      __dirname,
+      "../../public",
+      deletedUser.avatarURL
+    );
+    try {
+      await fs.unlink(avatarPath);
+    } catch (err) {
+      console.warn("Avatar file not found or already deleted:", avatarPath);
+    }
+
+    res
+      .status(200)
+      .json({ message: "User and related contacts deleted successfully" });
   } catch (error) {
-    console.error("Error deleting user:", error.message);
     next(error);
   }
 });
