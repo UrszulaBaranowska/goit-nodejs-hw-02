@@ -12,6 +12,12 @@ const fs = require("fs/promises");
 const jimp = require("jimp");
 const { v4: uuidv4 } = require("uuid");
 const sgMail = require("@sendgrid/mail");
+
+console.log(
+  "SENDGRID_API_KEY:",
+  process.env.SENDGRID_API_KEY ? "Loaded" : "Missing"
+);
+console.log("SENDGRID_SENDER:", process.env.SENDGRID_SENDER || "Missing");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const router = express.Router();
@@ -29,35 +35,52 @@ const loginSchema = Joi.object({
   password: Joi.string().required()
 });
 
+// Endpoint rejestracji użytkownika
 router.post("/signup", async (req, res, next) => {
+  console.log("Signup request received");
   try {
+    console.log(
+      "SENDGRID_API_KEY:",
+      process.env.SENDGRID_API_KEY ? "Loaded" : "Missing"
+    );
+    console.log("SENDGRID_SENDER:", process.env.SENDGRID_SENDER || "Missing");
+    // Walidacja danych wejściowych
     const { error } = signupSchema.validate(req.body);
     if (error) {
+      console.error("Validation error:", error.details[0].message);
       return res.status(400).json({ message: error.details[0].message });
     }
 
     const { email, password } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ message: "Email in use" });
-    }
-
+    // Hashowanie hasła
     const hashedPassword = await bcrypt.hash(password, 10);
-    const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
-    const verificationToken = uuidv4();
+    console.log("Password hashed");
 
+    // Generowanie gravatar
+    const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
+    console.log("Gravatar generated:", avatarURL);
+
+    // Generowanie tokena weryfikacyjnego
+    const verificationToken = uuidv4();
+    console.log("Verification token generated:", verificationToken);
+
+    // Tworzenie użytkownika w bazie danych
     const newUser = await User.create({
       email,
       password: hashedPassword,
       avatarURL,
       verificationToken
     });
+    console.log("User created in database:", newUser);
 
+    // Tworzenie linku weryfikacyjnego
     const verificationLink = `${req.protocol}://${req.get(
       "host"
     )}/users/verify/${verificationToken}`;
+    console.log("Verification link:", verificationLink);
 
+    // Przygotowanie wiadomości e-mail
     const msg = {
       to: email,
       from: process.env.SENDGRID_SENDER,
@@ -65,8 +88,16 @@ router.post("/signup", async (req, res, next) => {
       html: `<p>Click the link to verify your email: <a href="${verificationLink}">${verificationLink}</a></p>`
     };
 
-    await sgMail.send(msg);
+    // Wysyłanie e-maila
+    try {
+      await sgMail.send(msg);
+      console.log("Verification email sent to:", email);
+    } catch (emailError) {
+      console.error("Error sending email:", emailError.message);
+      return res.status(500).json({ message: "Email sending failed" });
+    }
 
+    // Zwracanie odpowiedzi
     res.status(201).json({
       user: {
         email: newUser.email,
@@ -75,6 +106,7 @@ router.post("/signup", async (req, res, next) => {
       }
     });
   } catch (error) {
+    console.error("Error in signup endpoint:", error.message, error.stack);
     next(error);
   }
 });

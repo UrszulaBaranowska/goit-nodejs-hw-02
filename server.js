@@ -1,9 +1,15 @@
+require("dotenv").config();
+
 const express = require("express");
 const path = require("path");
 const app = require("./app");
 const connectDB = require("./config/db");
 console.log("Starting server...");
-
+console.log(
+  "SENDGRID_API_KEY:",
+  process.env.SENDGRID_API_KEY ? "Loaded" : "Missing"
+);
+console.log("SENDGRID_SENDER:", process.env.SENDGRID_SENDER || "Missing");
 const PORT = process.env.PORT || 3000;
 
 console.log(
