@@ -13,11 +13,6 @@ const jimp = require("jimp");
 const { v4: uuidv4 } = require("uuid");
 const sgMail = require("@sendgrid/mail");
 
-console.log(
-  "SENDGRID_API_KEY:",
-  process.env.SENDGRID_API_KEY ? "Loaded" : "Missing"
-);
-console.log("SENDGRID_SENDER:", process.env.SENDGRID_SENDER || "Missing");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const router = express.Router();
@@ -35,7 +30,6 @@ const loginSchema = Joi.object({
   password: Joi.string().required()
 });
 
-// Endpoint rejestracji użytkownika
 router.post("/signup", async (req, res, next) => {
   console.log("Signup request received");
   try {
@@ -44,7 +38,7 @@ router.post("/signup", async (req, res, next) => {
       process.env.SENDGRID_API_KEY ? "Loaded" : "Missing"
     );
     console.log("SENDGRID_SENDER:", process.env.SENDGRID_SENDER || "Missing");
-    // Walidacja danych wejściowych
+
     const { error } = signupSchema.validate(req.body);
     if (error) {
       console.error("Validation error:", error.details[0].message);
@@ -53,19 +47,15 @@ router.post("/signup", async (req, res, next) => {
 
     const { email, password } = req.body;
 
-    // Hashowanie hasła
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log("Password hashed");
 
-    // Generowanie gravatar
     const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
     console.log("Gravatar generated:", avatarURL);
 
-    // Generowanie tokena weryfikacyjnego
     const verificationToken = uuidv4();
     console.log("Verification token generated:", verificationToken);
 
-    // Tworzenie użytkownika w bazie danych
     const newUser = await User.create({
       email,
       password: hashedPassword,
@@ -74,13 +64,11 @@ router.post("/signup", async (req, res, next) => {
     });
     console.log("User created in database:", newUser);
 
-    // Tworzenie linku weryfikacyjnego
     const verificationLink = `${req.protocol}://${req.get(
       "host"
     )}/users/verify/${verificationToken}`;
     console.log("Verification link:", verificationLink);
 
-    // Przygotowanie wiadomości e-mail
     const msg = {
       to: email,
       from: process.env.SENDGRID_SENDER,
@@ -88,7 +76,6 @@ router.post("/signup", async (req, res, next) => {
       html: `<p>Click the link to verify your email: <a href="${verificationLink}">${verificationLink}</a></p>`
     };
 
-    // Wysyłanie e-maila
     try {
       await sgMail.send(msg);
       console.log("Verification email sent to:", email);
@@ -97,7 +84,6 @@ router.post("/signup", async (req, res, next) => {
       return res.status(500).json({ message: "Email sending failed" });
     }
 
-    // Zwracanie odpowiedzi
     res.status(201).json({
       user: {
         email: newUser.email,
